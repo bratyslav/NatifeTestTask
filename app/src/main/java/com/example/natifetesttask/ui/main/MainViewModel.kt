@@ -11,45 +11,57 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-data class MainScreenUiState(
+data class MainUiState(
     val gifs: List<Gif> = emptyList(),
-    val searchValue: String = ""
+    val currentPageNum: Int = 0,
+    val searchQuery: String = ""
 )
 
-class MainScreenViewModel(private val gifRepository: GifRepository): ViewModel() {
+class MainViewModel(private val gifRepository: GifRepository): ViewModel() {
 
-    private val _uiState = MutableStateFlow(MainScreenUiState())
-    private var currentPageNum = 1
-    val uiState: StateFlow<MainScreenUiState> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow(MainUiState())
+    val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
     init {
         viewModelScope.launch {
-            val gifs = gifRepository.getPage(0)
+            val gifs = gifRepository.loadNextPage(0)
             gifs?.let { _uiState.update { it.copy(gifs = gifs) } }
         }
     }
 
-    fun onSearchValueChange(newValue: String) {
-        _uiState.update { it.copy(searchValue = newValue) }
+    fun onSearchQueryChange(newValue: String) {
+        if (isValid(newValue)) {
+            _uiState.update { it.copy(searchQuery = newValue) }
+        }
     }
 
-    fun applySearchValue() {
+    fun applySearchQuery() {
         _uiState.update { it.copy(gifs = emptyList()) }
-        val searchQuery = uiState.value.searchValue.ifEmpty { null }
+        val searchQuery = uiState.value.searchQuery.ifEmpty { null }
         viewModelScope.launch {
-            val gifs = gifRepository.getPage(currentPageNum, query = searchQuery)
-            gifs?.let { _uiState.update { it.copy(gifs = gifs) } }
-            currentPageNum = 1
+            val gifs = gifRepository.loadNextPage(uiState.value.currentPageNum, query = searchQuery)
+            gifs?.let {
+                _uiState.update {
+                    it.copy(gifs = gifs, currentPageNum = it.currentPageNum + 1)
+                }
+            }
         }
     }
 
     fun loadNextGifs() {
         viewModelScope.launch {
-            val searchQuery = uiState.value.searchValue.ifEmpty { null }
-            val nextGifs = gifRepository.getPage(currentPageNum, query = searchQuery)
-            nextGifs?.let { _uiState.update { it.copy(gifs = it.gifs + nextGifs) } }
-            currentPageNum += 1
+            val searchQuery = uiState.value.searchQuery.ifEmpty { null }
+            val nextGifs = gifRepository.loadNextPage(uiState.value.currentPageNum, query = searchQuery)
+            nextGifs?.let {
+                _uiState.update {
+                    it.copy(gifs = it.gifs + nextGifs, currentPageNum = it.currentPageNum + 1)
+                }
+            }
         }
+    }
+
+    private fun isValid(value: String): Boolean {
+        return !value.contains("\n")
     }
 
     companion object {
@@ -58,7 +70,7 @@ class MainScreenViewModel(private val gifRepository: GifRepository): ViewModel()
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    return MainScreenViewModel(gifRepository) as T
+                    return MainViewModel(gifRepository) as T
                 }
             }
     }

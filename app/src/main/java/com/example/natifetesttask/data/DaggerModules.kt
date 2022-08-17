@@ -1,5 +1,6 @@
 package com.example.natifetesttask.data
 
+import com.example.natifetesttask.data.GifRestApiService.Companion.BASE_URL
 import com.example.natifetesttask.data.impl.GifsDataSourceImpl
 import dagger.Binds
 import dagger.Module
@@ -21,7 +22,7 @@ class RetrofitModule {
     @Provides
     fun provideGifRestApiService(): GifRestApiService {
         val retrofit = Retrofit.Builder()
-            .baseUrl(GifsDataSourceImpl.BASE_URL)
+            .baseUrl(BASE_URL)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
 
